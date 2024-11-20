@@ -1,0 +1,12 @@
+name: cadet-python-simulator
+channels:
+   - conda-forge
+dependencies:
+   - python=3.11
+   - pip
+   - sundials
+   - scikits.odes
+   - ipython
+   - matplotlib
+   - pip:
+       - git+https://github.com/cadet/CADET-Python-Simulator@master
