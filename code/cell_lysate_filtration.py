@@ -123,8 +123,8 @@ section = [
                 'start': 0,
                 'end': 110,
                 'connections': [
-                    [0, 1, 0, 0, 1],
-                    [1, 2, 0, 0, 0.5],
+                    [0, 1, 0, 0, flowrate_into_DEF],
+                    [1, 2, 0, 0, flowrate_out_of_permeate_tank],
                 ],
             }
         ]
@@ -170,7 +170,7 @@ vglwerte = [(1-sigma)*(1 + sigma*time) for time in t]
 
 i = 0
 
-print(np.linalg.norm(vglwerte-pressure[i][:, 0], np.inf))
+# print(np.linalg.norm(vglwerte-pressure[i][:, 0], np.inf))
 
 axes[0].plot(t, vglwerte, color='red', label='$\Delta P_{Vgl.}$')
 
@@ -203,6 +203,16 @@ axes.plot(t, tankvol[i][:, 0], 'o', label='$V^T$')
 axes.legend()
 # axes.set_xticks(t[0::2])
 fig.tight_layout()
+
+fig_c, ax_c = plt.subplots(2, 1, figsize=(6.4, 2*4.8))
+lines = ax_c[0].plot(t, tankconcentrations, alpha=.3)
+ax_c[0].set_title('Concentration in permeate tank')
+ax_c[1].plot(t, solver.unit_solutions['deadendfilter']['cake']['c']['values'], alpha=.3)
+ax_c[1].set_title('Concentration in filter cake')
+labels = ['Debris 1', 'Debris 2', 'Proteins']
+fig_c.legend(lines, labels, loc='outside lower center', ncols=3, frameon=False)
+fig_c.tight_layout()
+fig_c.subplots_adjust(bottom=.1)
 
 # fig.savefig('rejectionmultitankvol.png')
 plt.show(block=False)
