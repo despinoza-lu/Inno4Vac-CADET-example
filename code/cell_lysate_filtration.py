@@ -43,10 +43,22 @@ avogadro = 6.022e23
 
 case = 1
 
-filter_area = 1
+# Sartobran P .2 micron large scale
+filter_area = .1  # m^2
+filter_height = np.sqrt(filter_area/np.pi)*2*3  # m, assuming 1:3 aspect ratio to diameter
+r_pore = (.45 + .2)/2 * 1e-6  # m
+eps_filter = .8  # Filter porosity
+dyn_visc = 1.05e-3  # P.s
+# R_m = 8*dyn_visc*filter_height/eps_filter/r_pore**2
+C = 1
+permeability = C*r_pore**2
+R_m = filter_height/permeability
 filter_resistance = 1
+max_operating_pressure = 5e5  # Pa
 
-permeate_tank_volume = 30  # liters
+permeate_tank_volume = 1e-9  # liters, intial volume in permeate tank
+flowrate_into_DEF = 1  # m^3/s
+flowrate_out_of_permeate_tank = 1e-9  # m^3/s
 
 if case == 1:
     data = case1
@@ -60,7 +72,7 @@ MWs = (d*1e-9/2)**2*np.pi*rho_debris/avogadro*1000
 
 MW_protein = 82358.0
 
-MWs = MW_protein*np.array([1500, 1000, 1])
+MWs = MW_protein*np.array([1500, 1000, 1])  # Add water to this
 # MWs = np.append(MWs)
 
 # biomass_per_liter = 379  # g/l
@@ -85,13 +97,13 @@ component_system = CPSComponentSystem(
                     components=len(MWs),
                     pure_densities=[rho_debris]*len(MWs),
                     molecular_weights=MWs,
-                    viscosities=[1]*len(MWs),
+                    viscosities=[dyn_visc]*len(MWs),
                     specific_cake_resistances=[1]*len(MWs)
                     )
 
-rejectionmodell = StepCutOff(cutoff_weight=MWs.min()*1.1)
+rejectionmodell = StepCutOff(cutoff_weight=MW_protein*1.1)
 vol_dist = distribution()
-vol_dist.set_distr = distr
+vol_dist.set_distr = distr  # Add water to this too (wait for Johannes) molar concentrations
 inlet = DistributionInlet(component_system=component_system, name="inlet")
 inlet.distribution_function = vol_dist
 outlet = Outlet(component_system=component_system, name="outlet")
@@ -111,13 +123,14 @@ section = [
                 'start': 0,
                 'end': 110,
                 'connections': [
-                    [0, 1, 0, 0, 1],
-                    [1, 2, 0, 0, 0.5],
+                    [0, 1, 0, 0, flowrate_into_DEF],
+                    [1, 2, 0, 0, flowrate_out_of_permeate_tank],
                 ],
             }
         ]
 
 system.initialize_state()
+
 system.states['deadendfilter']['permeate_tank']['tankvolume'] = permeate_tank_volume
 system.states['deadendfilter']['permeate_tank']['c'] = np.array([0, 0, 0])
 solver = Solver(system, section)
@@ -158,7 +171,7 @@ vglwerte = [(1-sigma)*(1 + sigma*time) for time in t]
 
 i = 0
 
-print(np.linalg.norm(vglwerte-pressure[i][:, 0], np.inf))
+# print(np.linalg.norm(vglwerte-pressure[i][:, 0], np.inf))
 
 axes[0].plot(t, vglwerte, color='red', label='$\Delta P_{Vgl.}$')
 
@@ -191,6 +204,16 @@ axes.plot(t, tankvol[i][:, 0], 'o', label='$V^T$')
 axes.legend()
 # axes.set_xticks(t[0::2])
 fig.tight_layout()
+
+fig_c, ax_c = plt.subplots(2, 1, figsize=(6.4, 2*4.8))
+lines = ax_c[0].plot(t, tankconcentrations, alpha=.3)
+ax_c[0].set_title('Concentration in permeate tank')
+ax_c[1].plot(t, solver.unit_solutions['deadendfilter']['cake']['c']['values'], alpha=.3)
+ax_c[1].set_title('Concentration in filter cake')
+labels = ['Debris 1', 'Debris 2', 'Proteins']
+fig_c.legend(lines, labels, loc='outside lower center', ncols=3, frameon=False)
+fig_c.tight_layout()
+fig_c.subplots_adjust(bottom=.1)
 
 # fig.savefig('rejectionmultitankvol.png')
 plt.show(block=False)
