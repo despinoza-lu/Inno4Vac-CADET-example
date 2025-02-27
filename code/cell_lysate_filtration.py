@@ -43,10 +43,22 @@ avogadro = 6.022e23
 
 case = 1
 
-filter_area = 1
+# Sartobran P .2 micron large scale
+filter_area = .1  # m^2
+filter_height = np.sqrt(filter_area/np.pi)*2*3  # m, assuming 1:3 aspect ratio to diameter
+r_pore = (.45 + .2)/2 * 1e-6  # m
+eps_filter = .8  # Filter porosity
+dyn_visc = 1.05e-3  # P.s
+# R_m = 8*dyn_visc*filter_height/eps_filter/r_pore**2
+C = 1
+permeability = C*r_pore**2
+R_m = filter_height/permeability
 filter_resistance = 1
+max_operating_pressure = 5e5  # Pa
 
-permeate_tank_volume = 30  # liters
+permeate_tank_volume = 1e-9  # liters, intial volume in permeate tank
+flowrate_into_DEF = 1  # m^3/s
+flowrate_out_of_permeate_tank = 1e-9  # m^3/s
 
 if case == 1:
     data = case1
