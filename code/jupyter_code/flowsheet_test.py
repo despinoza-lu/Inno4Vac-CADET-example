@@ -2,6 +2,7 @@ from model_structures import capture_column
 import numpy as np
 from CADETProcess.simulator import Cadet
 from CADETPythonSimulator.solver import Solver
+# from cell_lysate_filtration import dead_end_filter
 import time
 
 def simulate_iex(column_model, simulator, c_load, iex_params):
@@ -17,7 +18,9 @@ def simulate_iex(column_model, simulator, c_load, iex_params):
     return capture_sim_outlet_t, capture_sim_outlet_c
 
 def simulate_DEF(filter_params, inlet_profile):
-    return 9.300857233055684e-05
+    # V, c = dead_end_filter
+    # return V, c
+    return 27, 9.300857233055684e-05
 
 if __name__ == '__main__':
 
