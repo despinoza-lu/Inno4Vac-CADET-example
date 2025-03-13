@@ -31,14 +31,14 @@ def simulate_DEF(filter_parameters, component_parameters, plot=False):
     return V, c
 
 if __name__ == '__main__':
-
+    simulate_chrom = False
     #%% Define dead end filter parameters
     filter_area = .1  # m^2
     delta_P = .75e5  # P, pressure drop using water at 500 l/h
     dyn_visc = 1.05e-3  # P.s
     Q_deltaP = 500 * 1e-3/3600  # m^3/s, testing flow rate in data sheet
     R_m = filter_area*delta_P/dyn_visc/Q_deltaP  # Filter resistance according to Sartobran .2 micron data sheet
-    filtration_flowrate = 1*1e-3  # m^3/s, operating flowrate
+    filtration_flowrate = 1*1e-3/3600  # m^3/s, operating flowrate
 
     concentrations = np.array([1.87916150e-12, 1.87916150e-12, 9.30085723e-05])*1e-3  # mol/m^3
     rho_water = 998  # kg*m^-3
@@ -62,6 +62,7 @@ if __name__ == '__main__':
                             'viscosities': [np.nan, np.nan, np.nan, dyn_visc],
                             }
 
+    print(f'Simulating cell clarification at a constant flowrate of {filtration_flowrate} m^3/s')
     V_permeate, c_permeate = simulate_DEF(DEF_parameters, component_parameters, plot=True)
     print('Dead end filter simulation complete.')
     print(f'Permeate protein concentration: {c_permeate} mol/m^3.')
@@ -102,6 +103,6 @@ if __name__ == '__main__':
     iex_params = [binding_params, column_params, process_params]
 
     c_load = c_distribution*c_permeate*1e3  # mol/l
-
-    t_iex, c_iex = simulate_iex(list(c_load), iex_params, plot=True)
-    print('Capture column simulation complete.')
+    if simulate_chrom:
+        t_iex, c_iex = simulate_iex(list(c_load), iex_params, plot=True)
+        print('Capture column simulation complete.')

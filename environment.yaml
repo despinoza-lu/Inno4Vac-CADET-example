@@ -1,0 +1,10 @@
+name: cadpythonsim
+channels:
+  - conda-forge
+dependencies:
+  - pip
+  - sundials
+  - scikits.odes
+  - ipython
+  - pip:
+      - git+https://github.com/fau-advanced-separations/CADET-Process.git@dev
