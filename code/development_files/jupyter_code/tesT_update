@@ -1,0 +1,92 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
+from CADETPythonSimulator.distribution_base import ConstantVolumeDistribution, ConstantConcentrationDistribution
+
+from CADETPythonSimulator.unit_operation import DistributionInlet, Outlet, DeadEndFiltration
+from CADETPythonSimulator.system import FlowSystem
+from CADETPythonSimulator.solver import Solver
+from CADETPythonSimulator.componentsystem import CPSComponentSystem
+from CADETPythonSimulator.rejection import StepCutOff
+from CADETPythonSimulator.viscosity import LogarithmicMixingViscosity
+
+permvol = []
+cakevol = []
+pressure = []
+permflow = []
+
+tankvol = []
+tankcon = []
+
+component_system = CPSComponentSystem(
+     name="test_comp",
+     components=3,
+     pure_densities=[1100, 1100, 1000],
+     molecular_weights=[1e6, 8e4, 18],
+     viscosities=[np.nan, np.nan, 0.001],
+     specific_cake_resistances=[1e6, 1e6, 0]
+)
+
+
+# Concidering c3 is unknown.
+concentration_distribution = ConstantVolumeDistribution(component_system=component_system, c=[1e-10, 1e-8])
+inlet = DistributionInlet(component_system=component_system, name="inlet")
+inlet.distribution_function = concentration_distribution
+
+rejectionmodell = StepCutOff(cutoff_weight=2*8e4)
+viscositymodell = LogarithmicMixingViscosity()
+filter_obj = DeadEndFiltration(
+     component_system=component_system,
+     name="deadendfilter",
+     rejection_model=rejectionmodell,
+     viscosity_model=viscositymodell,
+     membrane_area=1,
+     membrane_resistance=1,
+     )
+
+outlet = Outlet(component_system=component_system, name="outlet")
+
+unit_operation_list = [inlet, filter_obj]
+
+system = FlowSystem(unit_operations=unit_operation_list)
+section = [
+     {
+         'start': 0,
+         'end': 11,
+         'connections': [
+             [0, 1, 0, 0, 1],
+         ],
+     }
+]
+
+system.initialize_state()
+
+condist = ConstantConcentrationDistribution(component_system=component_system, c=[0, 0])
+c_init = condist.get_distribution(0, 0)
+
+# Setting startingvolume and accoding Concentrations are necessary. 
+# Permeate Tank must not be empty.
+system.states['deadendfilter']['permeate_tank']['volume'] = 1e-9
+system.states['deadendfilter']['permeate_tank']['c'] = c_init
+solver = Solver(system, section)
+
+solver.solve()
+
+t = solver.time_solutions
+
+cakeconcentration = solver.unit_solutions['deadendfilter']['cake']['c_in']['values']
+
+tankvolume = solver.unit_solutions['deadendfilter']['permeate_tank']['volume']['values']
+tankconzentrations = solver.unit_solutions['deadendfilter']['permeate_tank']['c']['values']
+
+plt.loglog(t, tankconzentrations[:,0], label = 'c0')
+plt.loglog(t, tankconzentrations[:,1], label = 'c1')
+plt.loglog(t, tankconzentrations[:,2], label = 'c2')
+plt.legend()
+plt.show()
+
+plt.loglog(t, cakeconcentration[:,0], label = 'c0')
+plt.loglog(t, cakeconcentration[:,1], label = 'c1')
+plt.loglog(t, cakeconcentration[:,2], label = 'c2')
+plt.legend()
+plt.show()

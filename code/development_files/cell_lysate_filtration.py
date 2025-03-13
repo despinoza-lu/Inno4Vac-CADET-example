@@ -8,22 +8,16 @@ Created on Mon Dec  9 09:31:17 2024
 import matplotlib.pyplot as plt
 import numpy as np
 
-from CADETPythonSimulator.distribution_base import DistributionBase
+from CADETPythonSimulator.distribution_base import DistributionBase, ConstantVolumeDistribution, ConstantConcentrationDistribution
 from CADETPythonSimulator.unit_operation import DistributionInlet, Outlet, DeadEndFiltration
 from CADETPythonSimulator.system import FlowSystem
 from CADETPythonSimulator.solver import Solver
 from CADETPythonSimulator.componentsystem import CPSComponentSystem
 from CADETPythonSimulator.rejection import StepCutOff
+from CADETPythonSimulator.viscosity import LogarithmicMixingViscosity
 
 # def dead_end_filter(plot=False):
 plot=True
-class distribution(DistributionBase):
-
-    a = 0.1
-    set_distr = np.array([10, 0, 0])
-
-    def get_distribution(self, t, nr):
-        return self.set_distr
 
 rho_water = 998  # kg*m^-3
 
@@ -43,14 +37,14 @@ R_m_HP = 8*dyn_visc*filter_height/eps_filter/r_pore**2
 C = 1
 permeability = C*r_pore**2
 delta_P = .75e5  # bar, pressure drop using water at 500 l/h
-Q = 500 * 1e-3/3600  # m^3/s, testing flow rate in data sheet
+Q = 1 * 1e-3/3600  # m^3/s, testing flow rate in data sheet
 R_m_data_sheet = filter_area*delta_P/dyn_visc/Q
 R_m_permeability = filter_height/permeability
 filter_resistance = R_m_data_sheet
 max_operating_pressure = 5e5  # Pa
 
 permeate_tank_volume = 1e-9  # m^3, intial volume in permeate tank
-flowrate_into_DEF = 1*.001/3600  # m^3/s
+flowrate_into_DEF = Q # m^3/s
 flowrate_out_of_permeate_tank = 1e-9  # m^3/s
 
 MW_protein = 82358.0  # g/mol
@@ -73,6 +67,7 @@ water_molar_amount = water_mass/MW_water
 component_masses = np.append((total_biomass - protein_mass)*debris_distr[:2], np.array([protein_mass, water_mass]))
 component_molar_amounts = np.append(component_masses[:2] / MWs[:2], np.array([protein_molar_amount, water_molar_amount]))
 molar_component_distr = component_molar_amounts / component_molar_amounts.sum()
+component_concentrations = np.append(molar_component_distr[:-2]/mass_of_fermentation_broth, protein_concentration)
 mass_component_distr = component_masses/mass_of_fermentation_broth
 distr = mass_component_distr
 
@@ -90,26 +85,30 @@ tankcon = []
 
 component_system = CPSComponentSystem(
                     name="cell_lysate",
-                    components=len(MWs) + 1,
-                    pure_densities=[rho_debris]*len(MWs) + [rho_water],
+                    components=4,
+                    pure_densities=[rho_debris]*3 + [rho_water],
                     molecular_weights=list(MWs) + [MW_water],
-                    viscosities=[dyn_visc]*(len(MWs) + 1),
-                    specific_cake_resistances=[cake_resistance]*len(MWs-1) + [0, 0],
+                    viscosities=[dyn_visc]*4,
+                    specific_cake_resistances=[cake_resistance]*2 + [0, 0],
                     )
 
-rejectionmodell = StepCutOff(cutoff_weight=MW_protein*2)
-vol_dist = distribution()
-vol_dist.set_distr = distr
+concentration_distribution = ConstantVolumeDistribution(component_system=component_system,
+                                                        c=component_concentrations)
 inlet = DistributionInlet(component_system=component_system, name="inlet")
-inlet.distribution_function = vol_dist
-outlet = Outlet(component_system=component_system, name="outlet")
+inlet.distribution_function = concentration_distribution
+
+rejectionmodell = StepCutOff(cutoff_weight=MW_protein*2)
+viscositymodell = LogarithmicMixingViscosity()
 filter_obj = DeadEndFiltration(
                     component_system=component_system,
                     name="deadendfilter",
                     rejection_model=rejectionmodell,
+                    viscosity_model=viscositymodell,
                     membrane_area=filter_area,
                     membrane_resistance=filter_resistance,
                     )
+
+outlet = Outlet(component_system=component_system, name="outlet")
 
 unit_operation_list = [inlet, filter_obj, outlet]
 
@@ -126,25 +125,27 @@ section = [
         ]
 
 system.initialize_state()
-system.states['deadendfilter']['permeate_tank']['tankvolume'] = permeate_tank_volume
-system.states['deadendfilter']['permeate_tank']['c'] = np.array([0, 0, 0, 0])
+
+condist = ConstantConcentrationDistribution(component_system=component_system,
+                                            c=[0, 0, 0])
+c_init = condist.get_distribution(0, 0)
+
+system.states['deadendfilter']['permeate_tank']['volume'] = permeate_tank_volume
+system.states['deadendfilter']['permeate_tank']['c'] = c_init
 solver = Solver(system, section)
 
 solver.solve()
 
 t = solver.time_solutions
+
 data1 = solver.unit_solutions['deadendfilter']['cake']['pressure']['values']
 
-data2 = solver.unit_solutions['deadendfilter']['cake']['cakevolume']['values']
-data3 = solver.unit_solutions['deadendfilter']['cake']['permeatevolume']['values']
-data4 = solver.unit_solutions['deadendfilter']['cake']['permeatevolume']['derivatives']
+data2 = solver.unit_solutions['deadendfilter']['cake']['volume']['values']
 
 pressure.append(data1)
-permvol.append(data3)
 cakevol.append(data2)
-permflow.append(data4)
 
-tankvolume = solver.unit_solutions['deadendfilter']['permeate_tank']['tankvolume']['values']
+tankvolume = solver.unit_solutions['deadendfilter']['permeate_tank']['volume']['values']
 tankconcentrations = solver.unit_solutions['deadendfilter']['permeate_tank']['c']['values']
 
 tankvol.append(tankvolume)
@@ -153,15 +154,11 @@ tankcon.append(tankconcentrations)
 title = 100
 
 if plot:
-    fig, axes = plt.subplots(1, 2)
+    fig, axes = plt.subplots(1, 1)
     # fig.suptitle(f'{title}% Rückhalt')
-    axes[0].set_xlabel('$t$ [$s$]')
-    axes[0].set_ylabel('$\Delta P$ [$Pa$]')
-    axes[0].set_title('')
-
-    axes[1].set_xlabel('$t$ [$s$]')
-    axes[1].set_ylabel('$V$ [$m^3$]')
-    axes[1].set_title('Cake and permeate volume')
+    axes.set_xlabel('$t$ [$s$]')
+    axes.set_ylabel('$\Delta P$ [$Pa$]')
+    axes.set_title('Pressure drop')
 
     sigma = title/100
     vglwerte = [(1-sigma)*(1 + sigma*time) for time in t]
@@ -170,19 +167,11 @@ if plot:
 
     # print(np.linalg.norm(vglwerte-pressure[i][:, 0], np.inf))
 
-    axes[0].plot(t, vglwerte, color='red', label='$\Delta P_{Vgl.}$')
+    axes.plot(t, vglwerte, color='red', label='$\Delta P_{Vgl.}$')
 
-    axes[0].plot(t, pressure[i][:, 0], 'o', color='blue', label='$\Delta P$')
+    axes.plot(t, pressure[i][:, 0], 'o', color='blue', label='$\Delta P$')
     # axes[0].set_box_aspect(1)
-    axes[0].legend()
-
-    axes[1].plot(t, permvol[i][:, 0], 'o', color='red', label='$V^P$')
-
-    axes[1].plot(t, np.sum(cakevol[i], axis=1), 'x', color='blue', label='$V^C$')
-    # axes[1].set_box_aspect(1)
-    axes[1].legend()
-    # axes[0].set_xticks(t[0::2])
-    # axes[1].set_xticks(t[0::2])
+    axes.legend()
     fig.tight_layout()
 
     # fig.savefig(f'{title}rejectionmulti.png')
@@ -213,10 +202,10 @@ if plot:
     ax_c_0_twin.set_ylabel('Water', color='orange')
     ax_c_0_twin.set_ylim(top=70)
 
-    ax_c[1].plot(t, solver.unit_solutions['deadendfilter']['cake']['c']['values'][:, :-1], alpha=alpha_value)
+    ax_c[1].plot(t, solver.unit_solutions['deadendfilter']['cake']['c_in']['values'][:, :-1], alpha=alpha_value)
     ax_c_1_twin = ax_c[1].twinx()
-    ax_c_1_twin.plot(t, solver.unit_solutions['deadendfilter']['cake']['c']['values'][:, -1], alpha=1, color='orange')
-    ax_c[1].set_title('Concentration in filter cake')
+    ax_c_1_twin.plot(t, solver.unit_solutions['deadendfilter']['cake']['c_in']['values'][:, -1], alpha=1, color='orange')
+    ax_c[1].set_title('Concentration into filter cake')
     ax_c[1].set_ylabel('Protein and debris')
     ax_c_1_twin.set_ylabel('Water', color='orange')
     # ax_c_1_twin.set_ylim(top=35)
@@ -237,7 +226,7 @@ if plot:
     # fig.savefig('rejectionmultitankvol.png')
     plt.show(block=False)
 
-permeate_volume = volume_to_filter
+permeate_volume = solver.unit_solutions['deadendfilter']['permeate_tank']['volume']['values'][-1]
 permeate_protein_concentration = solver.unit_solutions['outlet']['inlet']['c']['values'][-1, 2]
 
 #     return permeate_volume, permeate_protein_concentration
