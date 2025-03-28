@@ -37,14 +37,14 @@ R_m_HP = 8*dyn_visc*filter_height/eps_filter/r_pore**2
 C = 1
 permeability = C*r_pore**2
 delta_P = .75e5  # bar, pressure drop using water at 500 l/h
-Q = 1 * 1e-3/3600  # m^3/s, testing flow rate in data sheet
+Q = 500 * 1e-3/3600  # m^3/s, testing flow rate in data sheet
 R_m_data_sheet = filter_area*delta_P/dyn_visc/Q
 R_m_permeability = filter_height/permeability
 filter_resistance = R_m_data_sheet
 max_operating_pressure = 5e5  # Pa
 
 permeate_tank_volume = 1e-9  # m^3, intial volume in permeate tank
-flowrate_into_DEF = Q # m^3/s
+flowrate_into_DEF = 10*1e-3/3600 # m^3/s
 flowrate_out_of_permeate_tank = 1e-9  # m^3/s
 
 MW_protein = 82358.0  # g/mol
@@ -200,7 +200,7 @@ if plot:
     ax_c[0].set_title('Concentration in permeate tank')
     # ax_c[0].set_ylabel('Protein and debris')
     ax_c_0_twin.set_ylabel('Water', color='orange')
-    ax_c_0_twin.set_ylim(top=70)
+    ax_c_0_twin.set_ylim(bottom=0, top=70)
 
     ax_c[1].plot(t, solver.unit_solutions['deadendfilter']['cake']['c_in']['values'][:, :-1], alpha=alpha_value)
     ax_c_1_twin = ax_c[1].twinx()
@@ -216,7 +216,7 @@ if plot:
     ax_c[2].set_title('Concentration in outlet')
     # ax_c[2].set_ylabel('Protein and debris')
     ax_c_2_twin.set_ylabel('Water', color='orange')
-    ax_c_2_twin.set_ylim(top=70)
+    ax_c_2_twin.set_ylim(bottom=0, top=70)
 
     labels = ['Debris 1', 'Debris 2', 'Proteins', 'Water']
     fig_c.legend(lines + water_line, labels, loc='outside right center', ncols=1, frameon=False)

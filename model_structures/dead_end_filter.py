@@ -98,31 +98,27 @@ def dead_end_filter(filter_parameters, component_parameters, plot=False):
     title = 100
 
     if plot:
+
         fig, axes = plt.subplots(1, 1)
         axes.set_xlabel('$t$ [$s$]')
         axes.set_ylabel('$\Delta P$ [$Pa$]')
         axes.set_title('Pressure drop')
 
         axes.plot(t, pressure[0][:, 0], 'o', color='blue', label='$\Delta P$')
-        # axes[0].set_box_aspect(1)
+        axes.set_ylim(bottom=0, top=pressure[0][:, 0].max()*1.1)
         axes.legend()
         fig.tight_layout()
 
-        # fig.savefig(f'{title}rejectionmulti.png')
         plt.show(block = False)
 
         fig, axes = plt.subplots()
         fig.suptitle(f'Tank volume')
 
-        axes.title.set_text(f'{title}% Retention')
-
         axes.set_xlabel('$t$ [$s$]')
         axes.set_ylabel('$V^T$ [$liters$]')
 
         axes.plot(t, tankvol[0][:, 0]*1e3, 'o', label='$V^T$')
-        # axes.set_box_aspect(1)
         axes.legend()
-        # axes.set_xticks(t[0::2])
         fig.tight_layout()
 
         alpha_value = .3
@@ -158,7 +154,6 @@ def dead_end_filter(filter_parameters, component_parameters, plot=False):
         fig_c.tight_layout()
         fig_c.subplots_adjust(right=0.65)
 
-        # fig.savefig('rejectionmultitankvol.png')
         plt.show(block=False)
 
     permeate_volume = solver.unit_solutions['deadendfilter']['permeate_tank']['volume']['values'][-1]
@@ -167,21 +162,21 @@ def dead_end_filter(filter_parameters, component_parameters, plot=False):
     return permeate_volume, permeate_protein_concentration
 
 if __name__ == '__main__':
-
+    
     filter_area = .1  # m^2
     delta_P = .75e5  # P, pressure drop using water at 500 l/h
     dyn_visc = 1.05e-3  # P.s
     Q_deltaP = 500 * 1e-3/3600  # m^3/s, testing flow rate in data sheet
     R_m = filter_area*delta_P/dyn_visc/Q_deltaP  # Filter resistance according to Sartobran .2 micron data sheet
-    filtration_flowrate = 1*1e-3  # m^3/s, operating flowrate
+    filtration_flowrate = 10*1e-3/3600  # m^3/s, operating flowrate
 
-    concentrations = np.array([1.87916150e-12, 1.87916150e-12, 9.30085723e-05])*1e-3  # mol/m^3
+    concentrations = np.array([1.87916150e-12, 1.87916150e-12, 9.30085723e-05])  # mol/m^3
     rho_water = 998  # kg*m^-3
     rho_debris = 1.1*rho_water
     densities = [rho_debris]*3 + [rho_water]
-    cake_resistances = [1e11, 1e11, 0, 0]
+    cake_resistances = [1e15, 1e15, 0, 0]
 
-    molecular_weights = list(82358.0e-3*np.array([1500, 1000, 1])) + [18e-3]  # kg/mol
+    molecular_weights = list(82358.0*np.array([1500, 1000, 1])) + [18]  # kg/mol
     volume_to_filter = 27819e-6  # m^3
 
     DEF_parameters = {'area': filter_area,
@@ -197,5 +192,7 @@ if __name__ == '__main__':
                             'viscosities': [np.nan, np.nan, np.nan, dyn_visc],
                             }
 
-    V, c = dead_end_filter(DEF_parameters, component_parameters, plot=True)
-    print(f'Permeate protein concentration: {c} mol/m^3')
+    print(f'Simulating cell clarification at a constant flowrate of {filtration_flowrate} m^3/s')
+    V_permeate, c_permeate = dead_end_filter(DEF_parameters, component_parameters, plot=True)
+    print('Dead end filter simulation complete.')
+    print(f'Permeate protein concentration: {c_permeate} mol/l.')

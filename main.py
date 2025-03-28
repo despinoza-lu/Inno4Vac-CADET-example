@@ -23,6 +23,7 @@ def simulate_iex(c_load, iex_params, plot=False):
         labels = ['Product', 'Impurity 1', 'Impurity 2', 'Displacer component']
         ax.legend(lines, labels)
         pH_ax.plot(capture_sim_outlet_t, capture_sim_outlet_c[:, 0], color='grey')
+        ax.set_ylim(top=.0002)
         plt.show(block=False)
     return capture_sim_outlet_t, capture_sim_outlet_c
 
@@ -31,23 +32,25 @@ def simulate_DEF(filter_parameters, component_parameters, plot=False):
     return V, c
 
 if __name__ == '__main__':
-    simulate_chrom = False
+    simulate_chrom = True
     #%% Define dead end filter parameters
     filter_area = .1  # m^2
     delta_P = .75e5  # P, pressure drop using water at 500 l/h
     dyn_visc = 1.05e-3  # P.s
     Q_deltaP = 500 * 1e-3/3600  # m^3/s, testing flow rate in data sheet
     R_m = filter_area*delta_P/dyn_visc/Q_deltaP  # Filter resistance according to Sartobran .2 micron data sheet
-    filtration_flowrate = 1*1e-3/3600  # m^3/s, operating flowrate
+    filtration_flowrate = 10*1e-3/3600  # m^3/s, operating flowrate
 
-    concentrations = np.array([1.87916150e-12, 1.87916150e-12, 9.30085723e-05])*1e-3  # mol/m^3
+    concentrations = np.array([1.87916150e-12, 1.87916150e-12, 9.30085723e-05])  # mol/m^3
     rho_water = 998  # kg*m^-3
     rho_debris = 1.1*rho_water
     densities = [rho_debris]*3 + [rho_water]
-    cake_resistances = [1e11, 1e11, 0, 0]
+    cake_resistances = [1e15, 1e15, 0, 0]
 
-    molecular_weights = list(82358.0e-3*np.array([1500, 1000, 1])) + [18e-3]  # kg/mol
-    volume_to_filter = 27819e-6  # m^3
+
+    product_MW = 82358.0
+    molecular_weights = list(product_MW*np.array([1500, 1000, 1])) + [18]  # kg/mol
+    volume_to_filter = 28000e-6  # m^3
 
     DEF_parameters = {'area': filter_area,
                       'filter_resistance': R_m,
@@ -63,16 +66,16 @@ if __name__ == '__main__':
                             }
 
     print(f'Simulating cell clarification at a constant flowrate of {filtration_flowrate} m^3/s')
-    V_permeate, c_permeate = simulate_DEF(DEF_parameters, component_parameters, plot=True)
+    V_permeate, c_permeate = dead_end_filter(DEF_parameters, component_parameters, plot=True)
     print('Dead end filter simulation complete.')
-    print(f'Permeate protein concentration: {c_permeate} mol/m^3.')
+    print(f'Permeate protein concentration: {c_permeate} mol/l.')
 
     #%% Define ion-exchange parameters
     exp_number = 4
     c_distribution = np.array([0.17232376, 0.04308094, 0.13185379, 0.65274151])
     load_vol_list=[1.98, 2.22, 2.68, 3.10, 3.56, 4.00]
     wash_length_list=[8.0,8.0,8.0,8.0,12.0,12.0]
-    load_volume = load_vol_list[exp_number]  # Should come from the DEF simulation
+    load_volume = load_vol_list[exp_number]
     wash_volume = wash_length_list[exp_number]
 
     column_params = {}
@@ -102,7 +105,7 @@ if __name__ == '__main__':
 
     iex_params = [binding_params, column_params, process_params]
 
-    c_load = c_distribution*c_permeate*1e3  # mol/l
+    c_load = c_distribution*c_permeate
     if simulate_chrom:
         t_iex, c_iex = simulate_iex(list(c_load), iex_params, plot=True)
         print('Capture column simulation complete.')
